@@ -5,7 +5,6 @@ local CoreGui = game:GetService("CoreGui")
 local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local RunService = game:GetService("RunService")
 
 -- Code check UI
 local ScreenGui = Instance.new("ScreenGui")
@@ -59,6 +58,7 @@ Denied.Font = Enum.Font.Gotham
 Denied.TextSize = 14
 Denied.Parent = Frame
 
+-- Unlock Function
 local function UnlockHub()
     ScreenGui:Destroy()
 
@@ -80,106 +80,193 @@ local function UnlockHub()
         Utilities = Window:AddTab({ Title = "Utilities", Icon = "cpu" }),
     }
 
-    -- Coordinates Display (Top Left)
-    local coordGui = Instance.new("ScreenGui", CoreGui)
-    coordGui.Name = "CoordGui"
-    local coordLabel = Instance.new("TextLabel", coordGui)
-    coordLabel.Size = UDim2.new(0, 280, 0, 30)
-    coordLabel.Position = UDim2.new(0, 10, 0, 10)
-    coordLabel.BackgroundTransparency = 0.3
-    coordLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    coordLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    coordLabel.Font = Enum.Font.Code
-    coordLabel.TextSize = 16
-    coordLabel.Text = "Coordinates: (0, 0, 0)"
+    --// Minimize / Restore system
+    local Minimized = false
+    local CrownBtn = Instance.new("TextButton")
+    CrownBtn.Text = "👑"
+    CrownBtn.Size = UDim2.new(0,40,0,40)
+    CrownBtn.Position = UDim2.new(1, -45, 0, 5)
+    CrownBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    CrownBtn.TextScaled = true
+    CrownBtn.Parent = Window.Main
 
-    RunService.RenderStepped:Connect(function()
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local pos = LocalPlayer.Character.HumanoidRootPart.Position
-            coordLabel.Text = string.format("Coordinates: (%.1f, %.1f, %.1f)", pos.X, pos.Y, pos.Z)
-        end
-    end)
-
-    -- Minimize + Crown reopen
-    local minimized = false
-    local crownBtn = Instance.new("TextButton", coordGui)
-    crownBtn.Size = UDim2.new(0, 40, 0, 40)
-    crownBtn.Position = UDim2.new(0, 10, 0, 50)
-    crownBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
-    crownBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
-    crownBtn.Font = Enum.Font.GothamBold
-    crownBtn.TextSize = 20
-    crownBtn.Text = "👑"
-    crownBtn.Visible = false
-
-    Window:MinimizeButton(function()
-        minimized = true
-        crownBtn.Visible = true
-        coordLabel.Visible = false
-    end)
-
-    crownBtn.MouseButton1Click:Connect(function()
-        minimized = false
-        crownBtn.Visible = false
-        coordLabel.Visible = true
-        Window:Toggle(true)
+    CrownBtn.MouseButton1Click:Connect(function()
+        Minimized = not Minimized
+        Window.Main.Visible = not Minimized
     end)
 
     UserInputService.InputBegan:Connect(function(input, gp)
         if not gp and input.KeyCode == Enum.KeyCode.LeftAlt then
-            if minimized then
-                minimized = false
-                crownBtn.Visible = false
-                coordLabel.Visible = true
-                Window:Toggle(true)
-            else
-                minimized = true
-                crownBtn.Visible = true
-                coordLabel.Visible = false
-                Window:Toggle(false)
-            end
+            Window.Main.Visible = true
+            Minimized = false
         end
     end)
 
+    --// Positions System
+    local Positions = {}
+    local PositionButtons = {}
+    local positionName = nil
+
+    local function SavePositionsToFile()
+        writefile("YashDaddyHub_Positions.txt", HttpService:JSONEncode(Positions))
+    end
+
+    local function LoadPositionsFromFile()
+        if isfile("YashDaddyHub_Positions.txt") then
+            local data = HttpService:JSONDecode(readfile("YashDaddyHub_Positions.txt"))
+            for name, pos in pairs(data) do
+                Positions[name] = Vector3.new(pos.X, pos.Y, pos.Z)
+            end
+        end
+    end
+
+    LoadPositionsFromFile()
+
+    local function RefreshPositionButtons(section)
+        for _, btn in ipairs(PositionButtons) do
+            btn:Destroy()
+        end
+        PositionButtons = {}
+
+        for name, pos in pairs(Positions) do
+            local button = section:AddButton({
+                Title = "Teleport: " .. name,
+                Callback = function()
+                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(pos)
+                        Fluent:Notify({
+                            Title = "Teleported",
+                            Content = "You teleported to: " .. name,
+                            Duration = 5,
+                            Image = "check"
+                        })
+                    end
+                end
+            })
+            table.insert(PositionButtons, button)
+        end
+    end
+
     -- Manage Positions Tab
-    local ManageSection = Tabs.ManagePositions:AddSection("Save & Load")
+    do
+        local ManageSection = Tabs.ManagePositions:AddSection("Save & Load")
 
-    Tabs.ManagePositions:AddButton({
-        Title = "Teleport to Noble",
-        Callback = function()
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(1020.9, 346.7, -1322.6)
-                Fluent:Notify({ Title = "Teleported", Content = "You teleported to Noble!", Duration = 5, Image = "check" })
+        Tabs.ManagePositions:AddInput("PosName", {
+            Title = "Position Name",
+            Default = "",
+            Placeholder = "Enter a position name...",
+            Callback = function(value)
+                positionName = value
             end
-        end
-    })
+        })
 
-    Tabs.ManagePositions:AddButton({
-        Title = "Teleport to Food Stall",
-        Callback = function()
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(608.1, 165.6, -876.4)
-                Fluent:Notify({ Title = "Teleported", Content = "You teleported to Food Stall!", Duration = 5, Image = "check" })
+        Tabs.ManagePositions:AddButton({
+            Title = "Save Current Position",
+            Callback = function()
+                if not positionName or positionName == "" then
+                    Fluent:Notify({ Title = "Error", Content = "Please enter a name!", Duration = 5, Image = "x" })
+                    return
+                end
+
+                local char = LocalPlayer.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    Positions[positionName] = char.HumanoidRootPart.Position
+                    SavePositionsToFile()
+                    RefreshPositionButtons(ManageSection)
+                    Fluent:Notify({ Title = "Saved", Content = "Position: " .. positionName, Duration = 5, Image = "check" })
+                end
             end
-        end
-    })
+        })
+
+        RefreshPositionButtons(ManageSection)
+    end
 
     -- Utilities Tab
-    local UtilSection = Tabs.Utilities:AddSection("Tools")
+    do
+        local UtilSection = Tabs.Utilities:AddSection("Tools")
 
-    UtilSection:AddSlider("WalkSpeed", {
-        Title = "WalkSpeed",
-        Description = "Set your speed",
-        Default = 16,
-        Min = 16,
-        Max = 200,
-        Rounding = 0,
-        Callback = function(value)
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-                LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = value
+        -- Noble Teleport
+        UtilSection:AddButton({
+            Title = "Teleport to Noble",
+            Callback = function()
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(1020.9, 346.7, -1322.6)
+                    Fluent:Notify({ Title = "Teleported", Content = "You teleported to Noble!", Duration = 5, Image = "check" })
+                end
             end
-        end
-    })
+        })
+
+        -- Food Stall Teleport
+        UtilSection:AddButton({
+            Title = "Teleport to Food Stall",
+            Callback = function()
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(608.1, 165.6, -876.4)
+                    Fluent:Notify({ Title = "Teleported", Content = "You teleported to Food Stall!", Duration = 5, Image = "check" })
+                end
+            end
+        })
+
+        -- Teleport to Rosaline
+        UtilSection:AddButton({
+            Title = "Teleport to Rosaline",
+            Callback = function()
+                local function findRosaline(parent)
+                    for _, obj in ipairs(parent:GetChildren()) do
+                        if obj.Name == "Rosaline" and obj:FindFirstChild("HumanoidRootPart") then
+                            return obj
+                        end
+                        local found = findRosaline(obj)
+                        if found then return found end
+                    end
+                    return nil
+                end
+
+                local rosaline = findRosaline(workspace)
+                if rosaline then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = rosaline.HumanoidRootPart.CFrame + Vector3.new(0, 5, 0)
+                    Fluent:Notify({ Title = "Teleported", Content = "You teleported to Rosaline!", Duration = 5, Image = "check" })
+                else
+                    Fluent:Notify({ Title = "Error", Content = "Rosaline not found.", Duration = 5, Image = "x" })
+                end
+            end
+        })
+
+        -- Speed Slider
+        UtilSection:AddSlider("WalkSpeed", {
+            Title = "WalkSpeed",
+            Description = "Set your speed",
+            Default = 16,
+            Min = 16,
+            Max = 200,
+            Rounding = 0,
+            Callback = function(value)
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+                    LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = value
+                end
+            end
+        })
+
+        -- Auto Hold E
+        local holdingE = false
+        local connection
+
+        UtilSection:AddToggle("AutoHoldE", {
+            Title = "Auto Hold E",
+            Default = false,
+            Callback = function(state)
+                holdingE = state
+                if holdingE then
+                    connection = game:GetService("RunService").Heartbeat:Connect(function()
+                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, nil)
+                    end)
+                else
+                    if connection then connection:Disconnect() end
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, nil)
+                end
+            end
+        })
+    end
 
     Fluent:Notify({
         Title = "Yash Daddy Hub",
@@ -189,6 +276,7 @@ local function UnlockHub()
     })
 end
 
+-- Unlock check
 Submit.MouseButton1Click:Connect(function()
     if TextBox.Text == "yashismydaddy" then
         UnlockHub()
